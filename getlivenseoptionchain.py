@@ -12,7 +12,6 @@ __credits__    = ["Rahul Gedam"]
 __license__    = "Public"
 __version__    = "1.0.0"
 __maintainer__ = "Rahul Gedam"
-__email__      = "rahulgedam@gmail.com"
 __status__     = "Development"
 
 
