@@ -12,32 +12,43 @@ __credits__    = ["Rahul Gedam"]
 __license__    = "Public"
 __version__    = "1.0.0"
 __maintainer__ = "Rahul Gedam"
+__email__      = "rahulgedam@gmail.com"
 __status__     = "Development"
 
 
 #Function add different option strike data in respective option strike sheet
-def addOptionDataInSheet(wb, currTime,strikePrice,ceLTP,ceOI,ceOIChange,peLTP,peOI,peOIChange,lastRow,instrName,ATM,optExpiryDate):
+def addOptionDataInSheet(wb, currTime, strikePrice, ceLTP,ceChips, ceHawa, ceOI, ceOIChange, peLTP,peChips, peHawa, peOI, peOIChange, lastRow, instrName, ATM, optExpiryDate):
     wb_sheet = wb.sheets['OptChain'+optExpiryDate]
     wb_sheet.cells(lastRow + 1, 1).value = currTime
     wb_sheet.cells(lastRow + 1, 2).value = ceLTP
-    wb_sheet.cells(lastRow + 1, 3).value = ceOI
-    wb_sheet.cells(lastRow + 1, 4).value = ceOIChange
-    wb_sheet.cells(lastRow + 1, 5).value = strikePrice
-    wb_sheet.cells(lastRow + 1, 6).value = peLTP
-    wb_sheet.cells(lastRow + 1, 7).value = peOI
-    wb_sheet.cells(lastRow + 1, 8).value = peOIChange
+    wb_sheet.cells(lastRow + 1, 3).value = ceChips
+    wb_sheet.cells(lastRow + 1, 4).value = ceHawa
+    wb_sheet.cells(lastRow + 1, 5).value = ceOI
+    wb_sheet.cells(lastRow + 1, 6).value = ceOIChange
+    wb_sheet.cells(lastRow + 1, 7).value = strikePrice
+    wb_sheet.cells(lastRow + 1, 8).value = peLTP
+    wb_sheet.cells(lastRow + 1, 9).value = peChips
+    wb_sheet.cells(lastRow + 1, 10).value = peHawa
+    wb_sheet.cells(lastRow + 1, 11).value = peOI
+    wb_sheet.cells(lastRow + 1, 12).value = peOIChange
     #Color strike Price
-    wb_sheet.range(lastRow + 1, 5).color = (255, 255, 0)
+    wb_sheet.range(lastRow + 1, 7).color = (255, 255, 0)
     return wb
 
 #Function to calculate over option chain
-def createOptionChain(wb, optionData, ATM, lotSize, instrName, optExpDate):
+def createOptionChain(wb, optionData, ATM, lotSize, instrName, optExpDate, FUT_SPOT):
     lastRow = 0
     for optionRow in optionData:
         if optionRow['expiryDate'] == optExpDate:
           try:
            strikePrice = optionRow["CE"]["strikePrice"]
            ceLTP = optionRow["CE"]["lastPrice"]
+           ceChips = FUT_SPOT - strikePrice
+           if(ceChips < 0):
+             ceChips = 0
+           ceHawa = ceLTP - ceChips
+           if(ceHawa < 0):
+             ceHawa = 0            
            ceOI = lotSize*optionRow["CE"]["openInterest"]
            ceOIChange = lotSize*optionRow["CE"]["changeinOpenInterest"]
           except:
@@ -48,6 +59,12 @@ def createOptionChain(wb, optionData, ATM, lotSize, instrName, optExpDate):
           try:
            strikePrice = optionRow["PE"]["strikePrice"]
            peLTP = optionRow["PE"]["lastPrice"]
+           peChips = strikePrice - FUT_SPOT
+           if(peChips < 0):
+             peChips = 0
+           peHawa = peLTP - peChips
+           if(peHawa < 0):
+             peHawa = 0
            peOI = lotSize*optionRow["PE"]["openInterest"]
            peOIChange = lotSize*optionRow["PE"]["changeinOpenInterest"]
           except:
@@ -56,11 +73,11 @@ def createOptionChain(wb, optionData, ATM, lotSize, instrName, optExpDate):
              peOIChange = 0             
              pass     
           lastRow = lastRow + 1
-          wb = addOptionDataInSheet(wb, currTime, strikePrice, ceLTP, ceOI, ceOIChange, peLTP, peOI, peOIChange, lastRow, instrName, ATM, optExpDate)
+          wb = addOptionDataInSheet(wb, currTime, strikePrice, ceLTP,ceChips, ceHawa, ceOI, ceOIChange, peLTP,peChips, peHawa, peOI, peOIChange, lastRow, instrName, ATM, optExpDate)
     return wb         
 
 #Function make excel sheet if not present already
-def makeOptionChainFile(wb, opt,currTime,ATM,instrName, optExpDate):
+def makeOptionChainFile(wb, opt,currTime,ATM,instrName, optExpDate, FUT_SPOT):
     if(instrName == "NIFTY"):
       lotSize = 50
     else:
@@ -68,26 +85,34 @@ def makeOptionChainFile(wb, opt,currTime,ATM,instrName, optExpDate):
     wb_sheet = wb.sheets['OptChain'+optExpDate]
     wb_sheet.cells(1, 1).value = "Time"
     wb_sheet.cells(1, 2).value = "CALL LTP"
-    wb_sheet.cells(1, 3).value = "CALL OI"
-    wb_sheet.cells(1, 4).value = "CALL OI CHANGE"
-    wb_sheet.cells(1, 5).value = "STRIKEPRICE"
-    wb_sheet.cells(1, 6).value = "PUT LTP"
-    wb_sheet.cells(1, 7).value = "PUT OI"    
-    wb_sheet.cells(1, 8).value = "PUT OI CHANGE"    
+    wb_sheet.cells(1, 3).value = "CALL CHIPS"
+    wb_sheet.cells(1, 4).value = "CALL HAWA"
+    wb_sheet.cells(1, 5).value = "CALL OI"
+    wb_sheet.cells(1, 6).value = "CALL OI CHANGE"
+    wb_sheet.cells(1, 7).value = "STRIKEPRICE"
+    wb_sheet.cells(1, 8).value = "PUT LTP"
+    wb_sheet.cells(1, 9).value = "PUT CHIPS"
+    wb_sheet.cells(1, 10).value = "PUT HAWA"
+    wb_sheet.cells(1, 11).value = "PUT OI"    
+    wb_sheet.cells(1, 12).value = "PUT OI CHANGE"   
+
+    wb_sheet.range('A1:L150').api.Borders.LineStyle = 1
+    wb_sheet.range('A1:L150').api.Borders.Weight = 2 
 
     optionData = opt["records"]["data"]
-    wb = createOptionChain(wb, optionData, ATM, lotSize, instrName, optExpDate)
+    wb = createOptionChain(wb, optionData, ATM, lotSize, instrName, optExpDate,FUT_SPOT)
+    
     return currTime, ATM
 
 #Function to add data in OptionChain.xlsx
-def putOptionChainData(opt, currTime, ATM, instrName, optExpDate):
+def putOptionChainData(opt, currTime, ATM, instrName, optExpDate,FUT_SPOT):
     wb = xw.Book('OptionChain'+ instrName + '.' + 'xlsx')
     optionData = opt["records"]["data"]
     if(instrName == "NIFTY"):
       lotSize = 50
     else:
       lotSize = 25    
-    wb = createOptionChain(wb,optionData, ATM, lotSize,instrName, optExpDate)
+    wb = createOptionChain(wb,optionData, ATM, lotSize,instrName, optExpDate,FUT_SPOT)
     wb.save()
     return currTime, ATM
 
@@ -97,9 +122,10 @@ def findATM(fut,instrName):
       factor = 50
     else:
       factor = 100
-    return int(math.floor(lastTraded / factor)) * factor
+    currATM = int(math.floor(lastTraded / factor)) * factor   
+    return currATM, lastTraded
 
-def getOptionChain(currTime,isFifteenMin,instrName):
+def getOptionChain(currTime,isFifteenMin,instrName, wb):
     try:
         #step 1: Read Option chain and extract list of expiries.
         oc_url = "https://www.nseindia.com/api/option-chain-indices?symbol="+ instrName
@@ -122,10 +148,9 @@ def getOptionChain(currTime,isFifteenMin,instrName):
         for j in optionExpDate:
           try:
             fut = downloadFuturesJson(instrName, futuresExpDate[m])
-            ATM = findATM(fut, instrName)
-            print(instrName + " ATM-----> ", ATM) 
-            #Build Option Chain Data
-            putOptionChainData(opt, currTime, ATM, instrName, optionExpDate[m])
+            ATM, FUT_SPOT = findATM(fut, instrName)
+            print(instrName + " ATM-----> ", ATM, "FUT SPOT----->", FUT_SPOT) 
+            makeOptionChainFile(wb, opt,currTime,ATM,instrName,optionExpDate[m], FUT_SPOT)
             m = m + 1 
           except Exception as t:
             print(t)
@@ -217,15 +242,15 @@ def createAndInitFiles(currTime, instrName):
         for j in optionExpDate:
          try:
             fut = downloadFuturesJson(instrName, futuresExpDate[m])
-            ATM = findATM(fut, instrName)
-            print(instrName + " ATM-----> ", ATM) 
-            makeOptionChainFile(wb, opt,currTime,ATM,instrName,optionExpDate[m])
+            ATM, FUT_SPOT = findATM(fut, instrName)
+            print(instrName + " ATM-----> ", ATM, "FUT SPOT----->", FUT_SPOT) 
+            makeOptionChainFile(wb, opt,currTime,ATM,instrName,optionExpDate[m], FUT_SPOT)
             m = m + 1
          except Exception as p:
             print(p)
 
 
-        return True
+        return True, wb
     except Exception as e:
         print(e)
         return False
@@ -240,7 +265,7 @@ if __name__ == '__main__':
         currTime = str(t1.hour)+":"+str(t1.minute)
         # From time 9:15 AM to 9:17 AM fetch data and Initialize Files
         #if(time(9,15)<=datetime.now().time()<=time(9,17,30) and not(success)):
-        success = createAndInitFiles(currTime, "NIFTY")
+        success, wb = createAndInitFiles(currTime, "NIFTY")
         #else:
         #  print("Not 9:15 AM Yet, Market yet to start  ", currTime)   
 
@@ -254,7 +279,7 @@ if __name__ == '__main__':
             if isFifMin==3:
                 isFifteenMin = True
                 isFifMin=0
-            getOptionChain(currTime, isFifteenMin, "NIFTY")
+            getOptionChain(currTime, isFifteenMin, "NIFTY", wb)
             t1 = datetime.now()
             while(t1.minute%5 !=0 or t1.second !=0):
                 t1 = datetime.now()
