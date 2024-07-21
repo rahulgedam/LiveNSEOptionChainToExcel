@@ -116,8 +116,8 @@ def putOptionChainData(opt, currTime, ATM, instrName, optExpDate,FUT_SPOT):
     wb.save()
     return currTime, ATM
 
-def findATM(fut,instrName):
-    lastTraded = float((fut["data"][0]["lastPrice"]).replace(',', ''))
+def findATM(lastTraded,instrName):
+    lastTraded = float(lastTraded)
     if(instrName == "NIFTY"):
       factor = 50
     else:
@@ -147,8 +147,8 @@ def getOptionChain(currTime,isFifteenMin,instrName, wb):
         m = 0
         for j in optionExpDate:
           try:
-            fut = downloadFuturesJson(instrName, futuresExpDate[m])
-            ATM, FUT_SPOT = findATM(fut, instrName)
+            lastTraded = downloadFuturesJson(instrName, futuresExpDate[m])
+            ATM, FUT_SPOT = findATM(lastTraded, instrName)
             print(instrName + " ATM-----> ", ATM, "FUT SPOT----->", FUT_SPOT) 
             makeOptionChainFile(wb, opt,currTime,ATM,instrName,optionExpDate[m], FUT_SPOT)
             m = m + 1 
@@ -179,27 +179,76 @@ def createSheetsInExcel(optionExpDate, wb):
     return wb    
 #-----------------------------------------------------------------------------------------------------------------
 def downloadFuturesJson(instrName, futExpDate):
-        fut_url = "https://www1.nseindia.com/live_market/dynaContent/live_watch/get_quote/ajaxFOGetQuoteJSON.jsp?underlying="+instrName+"&instrument=FUTIDX&expiry="+futExpDate
-        referer = "https://www1.nseindia.com/live_market/dynaContent/live_watch/get_quote/GetQuoteFO.jsp?underlying="+instrName+"&instrument=OPTIDX&expiry"+futExpDate+"&type=CE&strike=18500.00"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.102 Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9', 'Accept-Encoding': 'gzip, deflate, br', 'referer': referer}
-        cookies = {
-            'bm_sv': '808AA9DAA6889DCF6CB5A9AB14BF290F~t420SFeAK8epqchwzNEdgzJGSy4pjs8Mco4O/d7w5qW4TxShiDJYDHoeSAe60uaZMH2n5wjH3v0NnmtPWrKZosEZDfOSHts34ur4GGAPsGGL3LHYVPU/IbcIDhNf6MXF8oqWfpyJ0FXh74VTcL2NhnLG6DlsLun9OrT/+t9vHpY='}
-        session = requests.session()
+# URL to fetch the session cookies
+ homepage_url = "https://www.nseindia.com"
 
-        for cook in cookies:
-            session.cookies.set(cook, cookies[cook])
-        fut = session.get(fut_url, headers=headers).json()
-        # Pull Fut Json file
-        r1 = requests.get(fut_url, headers=headers)
-        content = r1.json()
-        with open("FutureOI"+ instrName + "." + "json", "w") as json_file:
-            json.dump(content, json_file, indent=4)
-        
-        return fut
+# URL to the API endpoint
+ api_url = "https://www.nseindia.com/api/snapshot-derivatives-equity?index=futures"
+
+# Headers for the initial request to the homepage
+ headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1"
+}
+
+# Start a session to persist cookies
+ session = requests.Session()
+
+# Make the initial request to the homepage to get cookies
+ response = session.get(homepage_url, headers=headers)
+
+# Check if the initial request was successful
+ if response.status_code == 200:
+    # Add more detailed headers for the API request
+    api_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Referer": "https://www.nseindia.com/",
+        "X-Requested-With": "XMLHttpRequest",
+        "Connection": "keep-alive"
+    }
+
+    # Make the request to the API endpoint with the same session
+    response = session.get(api_url, headers=api_headers)
+
+    # Check if the request was successful
+    if response.status_code == 200:
+        # Parse the JSON data
+        data = response.json()
+        with open("OptionOIRG.json", "w") as json_file:
+            json.dump(data, json_file, indent=4)    
+        volume_data = data.get('volume', {}).get('data', [0])
+        for item in volume_data:
+            if item.get('underlying') == instrName and item.get('expiryDate') == futExpDate:
+             lastPrice = item.get('lastPrice')
+             break        
+        #lastTraded = float((data["data"][0]["lastPrice"]).replace(',', ''))
+        # Print the data
+        print(lastPrice)
+        return lastPrice
+    else:
+        print(f"Failed to fetch data. Status code: {response.status_code}, Response: {response.text}")
+ else:
+    print(f"Failed to fetch homepage. Status code: {response.status_code}")
 #-----------------------------------------------------------------------------------------------------------------
+def readFuturesJson(instrName, futExpDate):
+   
+ with open('OptionOIRG.json', 'r') as json_file:
+    data = json.load(json_file)
+ volume_data = data.get('volume', {}).get('data', [])
+ for item in volume_data:
+    if item.get('underlying') == instrName and item.get('expiryDate') == futExpDate:
+        lastPrice = item.get('lastPrice')
+    break
 
+ return lastPrice
+#-------------------------------------------------------------------------------
 def readConfigJson():
     with open('config.json') as user_file:
      parsed_json = json.load(user_file)
@@ -241,8 +290,9 @@ def createAndInitFiles(currTime, instrName):
         m = 0
         for j in optionExpDate:
          try:
-            fut = downloadFuturesJson(instrName, futuresExpDate[m])
-            ATM, FUT_SPOT = findATM(fut, instrName)
+            lastTraded = downloadFuturesJson(instrName, futuresExpDate[m])
+            #lastTraded = readFuturesJson(instrName, futuresExpDate[m])
+            ATM, FUT_SPOT = findATM(lastTraded, instrName)
             print(instrName + " ATM-----> ", ATM, "FUT SPOT----->", FUT_SPOT) 
             makeOptionChainFile(wb, opt,currTime,ATM,instrName,optionExpDate[m], FUT_SPOT)
             m = m + 1
